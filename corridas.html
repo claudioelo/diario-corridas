@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diário de Corridas</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-shadow: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            padding: 40px 20px;
+
+        }
+
+        .container {
+            background-color: white;
+            width: 100%;
+            max-width: 500px;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .cabecalho {
+            text-align: center;
+            margin-bottom: 25px;
+
+        }
+
+        .cabecalho h2 {
+            font-size: 24px;
+            color: #1a1a2e;
+        }
+
+        .subtitulo {
+            color: #888;
+            font-size: 13px;
+            margin-top: 4px;
+
+        }
+
+        .campo {
+            margin-bottom: 14px;
+
+        }
+
+
+        .campo label {
+            display: block;
+            font-size: 13px;
+            font-weight: bold;
+            color: #444;
+            margin-bottom: 4px;
+        }
+
+        input {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 14px;
+
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #2c7be5;
+
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #2c7be5;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+
+        button:hover {
+            background-color: #1a5fc4;
+
+        }
+
+
+        .resumo {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+
+        }
+
+        .resumo p {
+            font-size: 14px;
+            margin-bottom: 6px;
+        }
+
+        .resumo strong {
+            color: #1a1a2e;
+
+        }
+
+        ul {
+            list-style: none;
+        }
+
+        li {
+            background: #f8f9fa;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <div class="cabecalho">
+            <h2>🚗 Diário de Corridas</h2>
+            <p class="subtitulo"> Registre suas corridas e acompanhe seus ganhos</p>
+        </div>
+
+        <div class="campo">
+            <label for="valorCorrida">Valor da corrida (R$)</label>
+            <input type="number" id="valorCorrida" placeholder="Ex: 15.50" step="0.01">
+        </div>
+
+        <div class="campo">
+            <label for="kmCorrida">km rodado nessa corrida</label>
+            <input type="number" id="kmCorrida" placeholder="Ex: 4.5" step="0.1">
+        </div>
+
+        <button onclick="registrarCorrida()">➕ Registrar Corrida</button>
+
+        <div class="campo" style="margin-top: 20px;">
+            <label for="combustivel">Gasto com combustivel hoje (R$)</label>
+            <input type="number" id="combustivel" placeholder="Ex: 40.00" step="0.01">
+            <button onclick="salvarCombustivel()" style="margin-top: 8px;"> 💾 Salvar gasto</button>
+        </div>
+
+        <div class="resumo" id="resumo"></div>
+
+        <h3 style="margin-bottom: 10px;">Corridas de hoje:</h3>
+
+        <ul id="listaCorridas"></ul>
+        <h3 style="margin-top: 25px; margin-bottom: 10px;">📊 Últimos 7 dias</h3>
+        <canvas id="graficoLucro"></canvas>
+
+
+        <h3 style="margin-top: 25px; margin-bottom: 10px;">📅Histórico do dia:</h3>
+        <div class="campo">
+            <input type="date" id="dataHistorico">
+            <button onclick="verHistorico()" style="margin-top: 8px;">🔍 Ver dia</button>
+        </div>
+        <div class="resumo" id="resumoHistorico"></div>
+
+    </div>
+
+
+    <script>
+        let grafico = null;
+
+        const mostrarValorNaBarra = {
+            id: "mostrarValorNaBarra",
+            afterDatasetsDraw(chart) {
+                const { ctx } = chart;
+                chart.data.datasets[0].data.forEach((valor, index) => {
+                    const barra = chart.getDatasetMeta(0).data[index];
+                    ctx.fillStyle = "#333";
+                    ctx.font = "bold 11px Arial";
+                    ctx.textAlign = "center";
+                    ctx.fillText(`R$ ${valor}`, barra.x, barra.y - 6);
+                });
+            }
+        };
+        function registrarCorrida() {
+            const valor = document.getElementById("valorCorrida").value;
+            const km = document.getElementById("kmCorrida").value;
+
+            if (valor === "" || km === "") {
+                alert("Preenche os dois campos!");
+                return;
+            }
+
+            if (Number(valor) <= 0 || Number(km) <= 0) {
+                alert("Valor e km precisam ser maiores que zero!");
+                return;
+            }
+
+            const hoje = new Date().toLocaleDateString("pt-br");
+
+            const corridas = JSON.parse(localStorage.getItem("corridas")) || [];
+
+            corridas.push({
+                valor: valor,
+                km: km,
+                data: hoje,
+                horario: new Date().toLocaleTimeString("pt-br", { hour: "2-digit", minute: "2-digit" })
+            });
+
+            localStorage.setItem("corridas", JSON.stringify(corridas));
+
+            document.getElementById("valorCorrida").value = "";
+            document.getElementById("kmCorrida").value = "";
+
+            mostrarCorridas();
+        }
+
+        function mostrarCorridas() {
+            const corridas = JSON.parse(localStorage.getItem("corridas")) || [];
+            const hoje = new Date().toLocaleDateString("pt-br");
+
+            const corridasHoje = corridas.filter(corrida => corrida.data === hoje);
+
+            exibirLista(corridasHoje);
+            calcularResumo(corridasHoje);
+            montarGrafico();
+
+            const dataSelecionada = document.getElementById("dataHistorico").value;
+            if (dataSelecionada) {
+                verHistorico();
+            }
+
+
+        }
+
+        function exibirLista(corridas) {
+            const lista = document.getElementById("listaCorridas");
+            lista.innerHTML = "";
+
+            if (corridas.length === 0) {
+                lista.innerHTML = `<li style="justify-content:center; color:#999; font-style:italic;">Nenhuma corrida registrada hoje</li>`;
+                return;
+            }
+
+            corridas.forEach(corrida => {
+                const item = document.createElement("li");
+
+                const texto = document.createElement("span");
+                item.textContent = `${corrida.horario} - R$ ${Number(corrida.valor).toFixed(2)} - ${corrida.km} km`;
+                item.appendChild(texto);
+
+
+                const botaoApagar = document.createElement("button");
+                botaoApagar.textContent = "🗑️";
+                botaoApagar.style.backgroundColor = "#e74c3c";
+                botaoApagar.style.padding = "4px 10px";
+                botaoApagar.onclick = function () {
+                    apagarCorrida(corrida);
+                };
+
+                item.appendChild(botaoApagar);
+                lista.appendChild(item);
+            });
+        }
+
+        function calcularResumo(corridas) {
+            const resumo = document.getElementById("resumo");
+
+            if (corridas.length === 0) {
+                resumo.innerHTML = "";
+                return;
+            }
+
+            let totalGanho = 0;
+            let totalKm = 0;
+
+            corridas.forEach(corrida => {
+                totalGanho += Number(corrida.valor);
+                totalKm += Number(corrida.km);
+            });
+
+            const ganhoPorKm = totalGanho / totalKm;
+
+            const hoje = new Date().toLocaleDateString("pt-br");
+            const gastos = JSON.parse(localStorage.getItem("gastosCombustivel")) || {};
+            const combustivelhoje = Number(gastos[hoje]) || 0;
+
+            const lucroLiquido = totalGanho - combustivelhoje;
+
+            resumo.innerHTML = `
+        <p>🚗 Total de corridas: <strong>${corridas.length}</strong></p>
+        <p>💰 Ganho total: <strong>R$ ${totalGanho.toFixed(2)}</strong></p>
+        <p>🛣️ Km rodado: <strong>${totalKm.toFixed(1)} km</strong></p>
+        <p>📊 Ganho por km: <strong>R$ ${ganhoPorKm.toFixed(2)}</strong></p>
+        <p>⛽ Combustível: <strong>R$ ${combustivelhoje.toFixed(2)}</sttrng></p>
+        <p>✅ Lucro liquido: <strong>R$ ${lucroLiquido.toFixed(2)}</strong></p>  
+            `;
+        }
+
+        mostrarCorridas();
+
+        function salvarCombustivel() {
+            const valor = document.getElementById("combustivel").value;
+
+            if (valor === "" || Number(valor) < 0) {
+                alert("Digite um valor válido!");
+                return;
+            }
+
+            const hoje = new Date().toLocaleDateString("pt-br");
+            const gastos = JSON.parse(localStorage.getItem("gastosCombustivel")) || {};
+
+            gastos[hoje] = valor;
+            localStorage.setItem("gastosCombustivel", JSON.stringify(gastos));
+            mostrarCorridas();
+
+        }
+
+        function verHistorico() {
+            const dataEscolhida = document.getElementById("dataHistorico").value;
+
+            if (!dataEscolhida) {
+                alert("Escolhe uma data primeiro!");
+                return;
+            }
+
+            const [ano, mes, dia] = dataEscolhida.split("-");
+            const dataFormatada = `${dia}/${mes}/${ano}`;
+
+            const corridas = JSON.parse(localStorage.getItem("corridas")) || [];
+            const corridasDoDia = corridas.filter(corrida => corrida.data === dataFormatada);
+
+            const resumoHistorico = document.getElementById("resumoHistorico");
+
+            if (corridasDoDia.length === 0) {
+                resumoHistorico.innerHTML = `<p style="text-align:center; color:#999; font-style:italic;">Nenhuma corrida nesse dia</p>`;
+                return;
+            }
+
+            let totalGanho = 0;
+            let totalKm = 0;
+
+            corridasDoDia.forEach(corrida => {
+                totalGanho += Number(corrida.valor);
+                totalKm += Number(corrida.km);
+            });
+
+            const gastos = JSON.parse(localStorage.getItem("gastosCombustivel")) || {};
+            const combustivelDia = Number(gastos[dataFormatada]) || 0;
+            const lucroLiquido = totalGanho - combustivelDia;
+
+            resumoHistorico.innerHTML = `
+        <p>📅 Data: <strong>${dataFormatada}</strong></p>
+        <p>🚗 Corridas: <strong>${corridasDoDia.length}</strong></p>
+        <p>💰 Ganho total: <strong>R$ ${totalGanho.toFixed(2)}</strong></p>
+        <p>🛣️ Km rodado: <strong>${totalKm.toFixed(1)} km</strong></p>
+        <p>⛽ Combustível: <strong>R$ ${combustivelDia.toFixed(2)}</strong></p>
+        <p>✅ Lucro líquido: <strong>R$ ${lucroLiquido.toFixed(2)}</strong></p>
+    `;
+        }
+
+
+
+
+        function montarGrafico() {
+            const corridas = JSON.parse(localStorage.getItem("corridas")) || [];
+            const gastos = JSON.parse(localStorage.getItem("gastosCombustivel")) || {};
+
+            const labels = [];
+            const valores = [];
+
+            for (let i = 6; i >= 0; i--) {
+                const data = new Date();
+                data.setDate(data.getDate() - i);
+                const dataFormatada = data.toLocaleDateString("pt-br");
+
+                const corridasDoDia = corridas.filter(c => c.data === dataFormatada);
+                const ganhoDia = corridasDoDia.reduce((total, c) => total + Number(c.valor), 0);
+                const combustivelDia = Number(gastos[dataFormatada]) || 0;
+                const lucroDia = ganhoDia - combustivelDia;
+
+                labels.push(dataFormatada.slice(0, 5));
+                valores.push(lucroDia.toFixed(2));
+            }
+
+            const ctx = document.getElementById("graficoLucro");
+
+            if (grafico) {
+                grafico.destroy();
+            }
+
+            grafico = new Chart(ctx, {
+                type: "bar",
+                plugins: [mostrarValorNaBarra],
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: "Lucro líquido (R$)",
+                        data: valores,
+                        backgroundColor: "#2c7be5",
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        function apagarCorrida(corridaParaApagar) {
+            if (!confirm("Apagar essa corrida?")) return;
+
+            const corridas = JSON.parse(localStorage.getItem("corridas")) || [];
+
+            const corridasAtualizadas = corridas.filter(corrida =>
+                !(corrida.data === corridaParaApagar.data &&
+                    corrida.horario === corridaParaApagar.horario &&
+                    corrida.valor === corridaParaApagar.valor &&
+                    corrida.km === corridaParaApagar.km)
+            );
+
+            localStorage.setItem("corridas", JSON.stringify(corridasAtualizadas));
+            mostrarCorridas();
+        }
+
+    </script>
+
+
+
+</body>
+
+</html>
