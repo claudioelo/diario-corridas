@@ -19,7 +19,7 @@
             display: flex;
             justify-content: center;
             padding: 40px 20px;
-
+            transition: background-color 0.3s;
         }
 
         .container {
@@ -129,15 +129,91 @@
             align-items: center;
             font-size: 14px;
         }
+
+        /* ---------- TELA INICIAL (escolha de plataforma) ---------- */
+        .botao-plataforma {
+            width: 100%;
+            padding: 16px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+        }
+
+        .plataforma-99 {
+            background-color: #ffcc00;
+            color: #1a1a2e;
+        }
+
+        .plataforma-uber {
+            background-color: #000000;
+            color: #ffffff;
+        }
+
+        .plataforma-outra {
+            background-color: #ff7b00;
+            color: #ffffff;
+        }
+
+        .barra-plataforma {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+
+        .barra-plataforma button {
+            background-color: rgba(255, 255, 255, 0.25);
+            font-size: 12px;
+            padding: 6px 10px;
+        }
     </style>
 </head>
 
 <body>
 
-    <div class="container">
+    <!-- ===================== TELA INICIAL ===================== -->
+    <div class="container" id="telaInicial">
         <div class="cabecalho">
             <h2>🚗 Diário de Corridas</h2>
-            <p class="subtitulo"> Registre suas corridas e acompanhe seus ganhos</p>
+            <p class="subtitulo">Escolhe a plataforma que você vai trabalhar agora</p>
+        </div>
+
+        <div class="campo">
+            <label for="nomeMotorista">Seu nome</label>
+            <input type="text" id="nomeMotorista" placeholder="Ex: Claudio">
+        </div>
+
+        <button class="botao-plataforma plataforma-99" onclick="entrarPlataforma('99', '#ffcc00', '#1a1a2e')">
+            🟡 99
+        </button>
+
+        <button class="botao-plataforma plataforma-uber" onclick="entrarPlataforma('Uber', '#000000', '#ffffff')">
+            ⚫ Uber
+        </button>
+
+        <div class="campo" style="margin-top: 20px;">
+            <label for="outraPlataforma">Outra plataforma (opcional)</label>
+            <input type="text" id="outraPlataforma" placeholder="Ex: InDrive">
+            <button style="width:100%; margin-top:8px; background-color:#ff7b00;" onclick="entrarPlataformaCustom()">
+                ➕ Entrar
+            </button>
+        </div>
+
+        <div class="resumo" id="resumoGeralDia" style="margin-top:25px;"></div>
+    </div>
+
+    <!-- ===================== TELA DO APP (depois de escolher a plataforma) ===================== -->
+    <div class="container" id="telaApp" style="display:none;">
+
+        <div class="barra-plataforma" id="barraPlataforma">
+            <span id="tituloPlataforma">Plataforma</span>
+            <button onclick="voltarInicio()">🔙 Trocar plataforma</button>
         </div>
 
         <div class="campo">
@@ -160,10 +236,10 @@
 
         <div class="resumo" id="resumo"></div>
 
-        <h3 style="margin-bottom: 10px;">Corridas de hoje:</h3>
+        <h3 style="margin-bottom: 10px;">Corridas de hoje (nessa plataforma):</h3>
 
         <ul id="listaCorridas"></ul>
-        <h3 style="margin-top: 25px; margin-bottom: 10px;">📊 Últimos 7 dias</h3>
+        <h3 style="margin-top: 25px; margin-bottom: 10px;">📊 Últimos 7 dias (todas plataformas)</h3>
         <canvas id="graficoLucro"></canvas>
 
 
@@ -179,6 +255,7 @@
 
     <script>
         let grafico = null;
+        let plataformaAtual = null;
 
         const mostrarValorNaBarra = {
             id: "mostrarValorNaBarra",
@@ -193,6 +270,49 @@
                 });
             }
         };
+
+        // ---------- TROCA DE TELA / PLATAFORMA ----------
+
+        function entrarPlataforma(nome, corFundo, corTexto) {
+            const nomeDigitado = document.getElementById("nomeMotorista").value;
+            if (nomeDigitado) {
+                localStorage.setItem("nomeMotorista", nomeDigitado);
+            }
+
+            plataformaAtual = nome;
+
+            document.body.style.backgroundColor = corFundo;
+
+            const barra = document.getElementById("barraPlataforma");
+            barra.style.backgroundColor = corFundo;
+            barra.style.color = corTexto;
+            document.getElementById("tituloPlataforma").textContent = "📍 " + nome;
+
+            document.getElementById("telaInicial").style.display = "none";
+            document.getElementById("telaApp").style.display = "block";
+
+            mostrarCorridas();
+        }
+
+        function entrarPlataformaCustom() {
+            const nome = document.getElementById("outraPlataforma").value.trim();
+            if (nome === "") {
+                alert("Digita o nome da plataforma!");
+                return;
+            }
+            entrarPlataforma(nome, "#ff7b00", "#ffffff");
+        }
+
+        function voltarInicio() {
+            plataformaAtual = null;
+            document.body.style.backgroundColor = "#f0f2f5";
+            document.getElementById("telaApp").style.display = "none";
+            document.getElementById("telaInicial").style.display = "block";
+            mostrarResumoGeralDia();
+        }
+
+        // ---------- REGISTRO DE CORRIDA ----------
+
         function registrarCorrida() {
             const valor = document.getElementById("valorCorrida").value;
             const km = document.getElementById("kmCorrida").value;
@@ -215,6 +335,7 @@
                 valor: valor,
                 km: km,
                 data: hoje,
+                plataforma: plataformaAtual,
                 horario: new Date().toLocaleTimeString("pt-br", { hour: "2-digit", minute: "2-digit" })
             });
 
@@ -230,7 +351,10 @@
             const corridas = JSON.parse(localStorage.getItem("corridas")) || [];
             const hoje = new Date().toLocaleDateString("pt-br");
 
-            const corridasHoje = corridas.filter(corrida => corrida.data === hoje);
+            // só mostra as corridas de hoje E dessa plataforma
+            const corridasHoje = corridas.filter(corrida =>
+                corrida.data === hoje && corrida.plataforma === plataformaAtual
+            );
 
             exibirLista(corridasHoje);
             calcularResumo(corridasHoje);
@@ -240,8 +364,6 @@
             if (dataSelecionada) {
                 verHistorico();
             }
-
-
         }
 
         function exibirLista(corridas) {
@@ -249,7 +371,7 @@
             lista.innerHTML = "";
 
             if (corridas.length === 0) {
-                lista.innerHTML = `<li style="justify-content:center; color:#999; font-style:italic;">Nenhuma corrida registrada hoje</li>`;
+                lista.innerHTML = `<li style="justify-content:center; color:#999; font-style:italic;">Nenhuma corrida registrada hoje nessa plataforma</li>`;
                 return;
             }
 
@@ -292,23 +414,64 @@
 
             const ganhoPorKm = totalGanho / totalKm;
 
-            const hoje = new Date().toLocaleDateString("pt-br");
-            const gastos = JSON.parse(localStorage.getItem("gastosCombustivel")) || {};
-            const combustivelhoje = Number(gastos[hoje]) || 0;
-
-            const lucroLiquido = totalGanho - combustivelhoje;
-
             resumo.innerHTML = `
-        <p>🚗 Total de corridas: <strong>${corridas.length}</strong></p>
+        <p>🚗 Total de corridas (${plataformaAtual}): <strong>${corridas.length}</strong></p>
         <p>💰 Ganho total: <strong>R$ ${totalGanho.toFixed(2)}</strong></p>
         <p>🛣️ Km rodado: <strong>${totalKm.toFixed(1)} km</strong></p>
         <p>📊 Ganho por km: <strong>R$ ${ganhoPorKm.toFixed(2)}</strong></p>
-        <p>⛽ Combustível: <strong>R$ ${combustivelhoje.toFixed(2)}</sttrng></p>
-        <p>✅ Lucro liquido: <strong>R$ ${lucroLiquido.toFixed(2)}</strong></p>  
             `;
         }
 
-        mostrarCorridas();
+        // ---------- RESUMO GERAL DO DIA (todas plataformas juntas) ----------
+
+        function mostrarResumoGeralDia() {
+            const corridas = JSON.parse(localStorage.getItem("corridas")) || [];
+            const hoje = new Date().toLocaleDateString("pt-br");
+            const corridasHoje = corridas.filter(corrida => corrida.data === hoje);
+
+            const resumoGeral = document.getElementById("resumoGeralDia");
+
+            if (corridasHoje.length === 0) {
+                resumoGeral.innerHTML = `<p style="text-align:center; color:#999; font-style:italic;">Nenhuma corrida registrada hoje ainda</p>`;
+                return;
+            }
+
+            // agrupa por plataforma
+            const porPlataforma = {};
+            corridasHoje.forEach(corrida => {
+                const nome = corrida.plataforma || "Sem plataforma";
+                if (!porPlataforma[nome]) {
+                    porPlataforma[nome] = { total: 0, km: 0, qtd: 0 };
+                }
+                porPlataforma[nome].total += Number(corrida.valor);
+                porPlataforma[nome].km += Number(corrida.km);
+                porPlataforma[nome].qtd += 1;
+            });
+
+            let totalGeral = 0;
+            let kmGeral = 0;
+            let linhasPorPlataforma = "";
+
+            for (const nome in porPlataforma) {
+                const dados = porPlataforma[nome];
+                totalGeral += dados.total;
+                kmGeral += dados.km;
+                linhasPorPlataforma += `<p>📍 ${nome}: <strong>R$ ${dados.total.toFixed(2)}</strong> (${dados.qtd} corridas)</p>`;
+            }
+
+            const gastos = JSON.parse(localStorage.getItem("gastosCombustivel")) || {};
+            const combustivelHoje = Number(gastos[hoje]) || 0;
+            const lucroLiquido = totalGeral - combustivelHoje;
+
+            resumoGeral.innerHTML = `
+        <p style="margin-bottom:10px;"><strong>📆 Resumo geral de hoje</strong></p>
+        ${linhasPorPlataforma}
+        <p style="margin-top:8px;">💰 Ganho total (todas plataformas): <strong>R$ ${totalGeral.toFixed(2)}</strong></p>
+        <p>🛣️ Km total: <strong>${kmGeral.toFixed(1)} km</strong></p>
+        <p>⛽ Combustível: <strong>R$ ${combustivelHoje.toFixed(2)}</strong></p>
+        <p>✅ Lucro líquido: <strong>R$ ${lucroLiquido.toFixed(2)}</strong></p>
+            `;
+        }
 
         function salvarCombustivel() {
             const valor = document.getElementById("combustivel").value;
@@ -348,13 +511,28 @@
                 return;
             }
 
+            // agrupa por plataforma também no histórico
+            const porPlataforma = {};
+            corridasDoDia.forEach(corrida => {
+                const nome = corrida.plataforma || "Sem plataforma";
+                if (!porPlataforma[nome]) {
+                    porPlataforma[nome] = { total: 0, km: 0, qtd: 0 };
+                }
+                porPlataforma[nome].total += Number(corrida.valor);
+                porPlataforma[nome].km += Number(corrida.km);
+                porPlataforma[nome].qtd += 1;
+            });
+
             let totalGanho = 0;
             let totalKm = 0;
+            let linhasPorPlataforma = "";
 
-            corridasDoDia.forEach(corrida => {
-                totalGanho += Number(corrida.valor);
-                totalKm += Number(corrida.km);
-            });
+            for (const nome in porPlataforma) {
+                const dados = porPlataforma[nome];
+                totalGanho += dados.total;
+                totalKm += dados.km;
+                linhasPorPlataforma += `<p>📍 ${nome}: <strong>R$ ${dados.total.toFixed(2)}</strong> (${dados.qtd} corridas)</p>`;
+            }
 
             const gastos = JSON.parse(localStorage.getItem("gastosCombustivel")) || {};
             const combustivelDia = Number(gastos[dataFormatada]) || 0;
@@ -362,15 +540,14 @@
 
             resumoHistorico.innerHTML = `
         <p>📅 Data: <strong>${dataFormatada}</strong></p>
-        <p>🚗 Corridas: <strong>${corridasDoDia.length}</strong></p>
+        ${linhasPorPlataforma}
+        <p style="margin-top:8px;">🚗 Corridas: <strong>${corridasDoDia.length}</strong></p>
         <p>💰 Ganho total: <strong>R$ ${totalGanho.toFixed(2)}</strong></p>
         <p>🛣️ Km rodado: <strong>${totalKm.toFixed(1)} km</strong></p>
         <p>⛽ Combustível: <strong>R$ ${combustivelDia.toFixed(2)}</strong></p>
         <p>✅ Lucro líquido: <strong>R$ ${lucroLiquido.toFixed(2)}</strong></p>
     `;
         }
-
-
 
 
         function montarGrafico() {
@@ -385,6 +562,7 @@
                 data.setDate(data.getDate() - i);
                 const dataFormatada = data.toLocaleDateString("pt-br");
 
+                // soma TODAS as plataformas nesse dia
                 const corridasDoDia = corridas.filter(c => c.data === dataFormatada);
                 const ganhoDia = corridasDoDia.reduce((total, c) => total + Number(c.valor), 0);
                 const combustivelDia = Number(gastos[dataFormatada]) || 0;
@@ -430,12 +608,23 @@
                 !(corrida.data === corridaParaApagar.data &&
                     corrida.horario === corridaParaApagar.horario &&
                     corrida.valor === corridaParaApagar.valor &&
-                    corrida.km === corridaParaApagar.km)
+                    corrida.km === corridaParaApagar.km &&
+                    corrida.plataforma === corridaParaApagar.plataforma)
             );
 
             localStorage.setItem("corridas", JSON.stringify(corridasAtualizadas));
             mostrarCorridas();
         }
+
+        // ---------- INÍCIO ----------
+
+        // preenche o nome se já tiver salvo antes
+        const nomeSalvo = localStorage.getItem("nomeMotorista");
+        if (nomeSalvo) {
+            document.getElementById("nomeMotorista").value = nomeSalvo;
+        }
+
+        mostrarResumoGeralDia();
 
     </script>
 
