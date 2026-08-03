@@ -63,7 +63,7 @@
             margin-bottom: 4px;
         }
 
-        input {
+        input, select {
             display: block;
             width: 100%;
             padding: 10px;
@@ -73,7 +73,7 @@
 
         }
 
-        input:focus {
+        input:focus, select:focus {
             outline: none;
             border-color: #2c7be5;
 
@@ -128,6 +128,21 @@
             justify-content: space-between;
             align-items: center;
             font-size: 14px;
+        }
+
+        /* ---------- CONFIG DE VEÍCULO / COMBUSTÍVEL ---------- */
+        .config-veiculo {
+            background-color: #f0f4ff;
+            border: 1px solid #d6e0ff;
+            border-radius: 8px;
+            padding: 14px;
+            margin-top: 20px;
+        }
+
+        .config-veiculo h4 {
+            font-size: 14px;
+            color: #1a1a2e;
+            margin-bottom: 10px;
         }
 
         /* ---------- TELA INICIAL (escolha de plataforma) ---------- */
@@ -186,7 +201,7 @@
 
         <div class="campo">
             <label for="nomeMotorista">Seu nome</label>
-            <input type="text" id="nomeMotorista" placeholder="Ex: Claudio">
+            <input type="text" id="nomeMotorista" placeholder="nome do motorista">
         </div>
 
         <button class="botao-plataforma plataforma-99" onclick="entrarPlataforma('99', '#ffcc00', '#1a1a2e')">
@@ -228,9 +243,39 @@
 
         <button onclick="registrarCorrida()">➕ Registrar Corrida</button>
 
+        <!-- ---------- CONFIG DO VEÍCULO (pra calcular gasto automático) ---------- -->
+        <div class="config-veiculo">
+            <h4>⚙️ Configuração do veículo</h4>
+
+            <div class="campo">
+                <label for="tipoCombustivel">Tipo de combustível</label>
+                <select id="tipoCombustivel">
+                    <option value="Gasolina">Gasolina</option>
+                    <option value="Etanol">Etanol</option>
+                    <option value="Diesel">Diesel</option>
+                    <option value="GNV">GNV</option>
+                </select>
+            </div>
+
+            <div class="campo">
+                <label for="consumoCarro">Consumo do carro (km por litro)</label>
+                <input type="number" id="consumoCarro" placeholder="Ex: 12" step="0.1">
+            </div>
+
+            <div class="campo">
+                <label for="precoLitro">Preço do litro (R$)</label>
+                <input type="number" id="precoLitro" placeholder="Ex: 5.89" step="0.01">
+            </div>
+
+            <button onclick="salvarConfigVeiculo()">💾 Salvar configuração</button>
+        </div>
+
         <div class="campo" style="margin-top: 20px;">
-            <label for="combustivel">Gasto com combustivel hoje (R$)</label>
+            <label for="combustivel">Gasto com combustível hoje (R$)</label>
             <input type="number" id="combustivel" placeholder="Ex: 40.00" step="0.01">
+            <button onclick="calcularGastoAutomatico()" style="margin-top: 8px; background-color:#2c9c5f;">
+                ⛽ Calcular automático (km do dia)
+            </button>
             <button onclick="salvarCombustivel()" style="margin-top: 8px;"> 💾 Salvar gasto</button>
         </div>
 
@@ -297,6 +342,7 @@
             document.getElementById("telaInicial").style.display = "none";
             document.getElementById("telaApp").style.display = "block";
 
+            carregarConfigVeiculo();
             mostrarCorridas();
         }
 
@@ -436,6 +482,71 @@
         <p>🛣️ Km rodado: <strong>${totalKm.toFixed(1)} km</strong></p>
         <p>📊 Ganho por km: <strong>R$ ${ganhoPorKm.toFixed(2)}</strong></p>
             `;
+        }
+
+        // ---------- CONFIGURAÇÃO DO VEÍCULO (combustível) ----------
+
+        function salvarConfigVeiculo() {
+            const tipo = document.getElementById("tipoCombustivel").value;
+            const consumo = document.getElementById("consumoCarro").value;
+            const preco = document.getElementById("precoLitro").value;
+
+            if (consumo === "" || preco === "" || Number(consumo) <= 0 || Number(preco) <= 0) {
+                alert("Preenche o consumo e o preço do litro com valores válidos!");
+                return;
+            }
+
+            const config = { tipo: tipo, consumo: consumo, preco: preco };
+            localStorage.setItem("configVeiculo_" + nomeAtual, JSON.stringify(config));
+
+            alert("Configuração salva!");
+        }
+
+        function carregarConfigVeiculo() {
+            const configSalva = JSON.parse(localStorage.getItem("configVeiculo_" + nomeAtual));
+
+            if (!configSalva) return;
+
+            document.getElementById("tipoCombustivel").value = configSalva.tipo;
+            document.getElementById("consumoCarro").value = configSalva.consumo;
+            document.getElementById("precoLitro").value = configSalva.preco;
+        }
+
+        // calcula o km TOTAL rodado no dia (todas as plataformas, só desse motorista)
+        function calcularKmTotalDoDia() {
+            const corridas = JSON.parse(localStorage.getItem("corridas")) || [];
+            const hoje = new Date().toLocaleDateString("pt-br");
+
+            const corridasHoje = corridas.filter(corrida =>
+                corrida.data === hoje && corrida.motorista === nomeAtual
+            );
+
+            return corridasHoje.reduce((total, corrida) => total + Number(corrida.km), 0);
+        }
+
+        function calcularGastoAutomatico() {
+            const configSalva = JSON.parse(localStorage.getItem("configVeiculo_" + nomeAtual));
+
+            if (!configSalva) {
+                alert("Primeiro preenche e salva a configuração do veículo (consumo e preço do litro)!");
+                return;
+            }
+
+            const consumo = Number(configSalva.consumo);
+            const preco = Number(configSalva.preco);
+            const kmTotalDia = calcularKmTotalDoDia();
+
+            if (kmTotalDia === 0) {
+                alert("Ainda não tem corrida registrada hoje pra calcular o km!");
+                return;
+            }
+
+            const litrosGastos = kmTotalDia / consumo;
+            const gastoTotal = litrosGastos * preco;
+
+            document.getElementById("combustivel").value = gastoTotal.toFixed(2);
+
+            alert(`Km rodado hoje: ${kmTotalDia.toFixed(1)} km\nLitros gastos: ${litrosGastos.toFixed(2)} L\nGasto calculado: R$ ${gastoTotal.toFixed(2)}\n\nClica em "Salvar gasto" pra confirmar.`);
         }
 
         // ---------- RESUMO GERAL DO DIA (todas plataformas juntas) ----------
